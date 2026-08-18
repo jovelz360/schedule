@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "IT",
-    "slug": "IT",
+    "slug": "it",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -32,11 +32,19 @@
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 76
         }
-      ]
+      ],
+      "@react-native-community/datetimepicker"
     ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "d19722b7-b217-4881-9f59-7ec47b048d09"
+      }
+    },
+    "owner": "jovelzs-team"
   }
 }
