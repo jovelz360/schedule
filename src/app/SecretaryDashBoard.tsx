@@ -1,9 +1,16 @@
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useEffect, useState } from 'react';
-import { Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import Nav from '../components/nav';
-import { approveAppointment, getAppointments, subscribeToAppointments, type Appointment } from '../data/appointments';
+import {
+    approveAppointment,
+    getAppointments,
+    rejectAppointment,
+    subscribeToAppointments,
+    updateAppointment,
+    type Appointment,
+} from '../data/appointments';
 
 export default function SecretaryDashBoard() {
   const [appointments, setAppointments] = useState<Appointment[]>(getAppointments());
@@ -17,6 +24,14 @@ export default function SecretaryDashBoard() {
     : appointments;
   const underReview = visibleAppointments.filter((appointment) => appointment.status === 'underReview');
   const approved = visibleAppointments.filter((appointment) => appointment.status === 'approved');
+  const rejected = visibleAppointments.filter((appointment) => appointment.status === 'rejected');
+
+  const confirmReject = (appointment: Appointment) => {
+    Alert.alert('Reject appointment', 'Are you sure you want to reject this appointment?', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Yes, reject', style: 'destructive', onPress: () => rejectAppointment(appointment.id) },
+    ]);
+  };
 
   return (
     <View style={styles.page}>
@@ -82,7 +97,12 @@ export default function SecretaryDashBoard() {
             <EmptyState text="No appointments under review" />
           ) : (
             underReview.map((appointment) => (
-              <AppointmentCard key={appointment.id} appointment={appointment} onApprove={() => approveAppointment(appointment.id)} />
+              <AppointmentCard
+                key={appointment.id}
+                appointment={appointment}
+                onApprove={() => approveAppointment(appointment.id)}
+                onReject={() => confirmReject(appointment)}
+              />
             ))
           )}
         </Section>
@@ -92,6 +112,14 @@ export default function SecretaryDashBoard() {
             <EmptyState text="No approved appointments" />
           ) : (
             approved.map((appointment) => <AppointmentCard key={appointment.id} appointment={appointment} />)
+          )}
+        </Section>
+
+        <Section title="Rejected history" count={rejected.length}>
+          {rejected.length === 0 ? (
+            <EmptyState text="No rejected appointments" />
+          ) : (
+            rejected.map((appointment) => <AppointmentCard key={appointment.id} appointment={appointment} />)
           )}
         </Section>
       </ScrollView>
@@ -113,32 +141,85 @@ function Section({ title, count, children }: { title: string; count: number; chi
   );
 }
 
-function AppointmentCard({ appointment, onApprove }: { appointment: Appointment; onApprove?: () => void }) {
+function AppointmentCard({ appointment, onApprove, onReject }: { appointment: Appointment; onApprove?: () => void; onReject?: () => void }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(appointment);
+
+  useEffect(() => setDraft(appointment), [appointment]);
+
+  const updateDraft = (field: keyof Omit<Appointment, 'id' | 'status'>, value: string) => {
+    setDraft((current) => ({ ...current, [field]: value }));
+  };
+
+  const save = () => {
+    if (!draft.venue || !draft.type || !draft.mission || !draft.reason || !draft.date || !draft.from || !draft.until) {
+      Alert.alert('Incomplete appointment', 'Please complete all required fields before saving.');
+      return;
+    }
+    if (!isValidTime(draft.from) || !isValidTime(draft.until)) {
+      Alert.alert('Invalid time', 'Use a valid 24-hour time between 00:00 and 23:59.');
+      return;
+    }
+    const { id, status, ...updates } = draft;
+    updateAppointment(id, updates);
+    setEditing(false);
+  };
+
+  const statusLabel = appointment.status === 'approved' ? 'Approved' : appointment.status === 'rejected' ? 'Rejected' : 'Under review';
+  const statusColor = appointment.status === 'approved' ? '#16a34a' : appointment.status === 'rejected' ? '#dc2626' : '#2563eb';
+
   return (
     <View style={styles.appointmentCard}>
       <View style={styles.cardTopRow}>
         <View style={styles.statusPill}>
-          <Ionicons name={appointment.status === 'approved' ? 'checkmark-circle-outline' : 'time-outline'} size={14} color={appointment.status === 'approved' ? '#16a34a' : '#2563eb'} />
-          <Text style={[styles.statusText, appointment.status === 'approved' && styles.approvedStatusText]}>
-            {appointment.status === 'approved' ? 'Approved' : 'Under review'}
-          </Text>
+          <Ionicons name={appointment.status === 'approved' ? 'checkmark-circle-outline' : appointment.status === 'rejected' ? 'close-circle-outline' : 'time-outline'} size={14} color={statusColor} />
+          <Text style={[styles.statusText, { color: statusColor }]}>{statusLabel}</Text>
         </View>
-        <Text style={styles.date}>{appointment.date}</Text>
+        {editing ? (
+          <TextInput value={draft.date} onChangeText={(value) => updateDraft('date', value)} style={styles.smallInput} placeholder="MM/DD/YYYY" />
+        ) : <Text style={styles.date}>{appointment.date}</Text>}
       </View>
-      <Text style={styles.cardTitle}>{appointment.type}</Text>
-      <Text style={styles.mission}>{appointment.mission}</Text>
+      {editing ? (
+        <>
+          <TextInput value={draft.type} onChangeText={(value) => updateDraft('type', value)} style={styles.editInput} placeholder="Appointment type" />
+          <TextInput value={draft.mission} onChangeText={(value) => updateDraft('mission', value)} style={styles.editInput} placeholder="Core mission" />
+        </>
+      ) : (
+        <><Text style={styles.cardTitle}>{appointment.type}</Text><Text style={styles.mission}>{appointment.mission}</Text></>
+      )}
       <View style={styles.detailGrid}>
-        <Detail icon="location-outline" value={appointment.venue} />
-        <Detail icon="time-outline" value={`${appointment.from} - ${appointment.until}`} />
+        {editing ? (
+          <>
+            <TextInput value={draft.venue} onChangeText={(value) => updateDraft('venue', value)} style={styles.editInput} placeholder="Appointment place" />
+            <View style={styles.editTimeRow}>
+              <TextInput value={draft.from} onChangeText={(value) => updateDraft('from', value)} style={[styles.editInput, styles.editTimeInput]} placeholder="From" keyboardType="number-pad" />
+              <TextInput value={draft.until} onChangeText={(value) => updateDraft('until', value)} style={[styles.editInput, styles.editTimeInput]} placeholder="Until" keyboardType="number-pad" />
+            </View>
+          </>
+        ) : (
+          <><Detail icon="location-outline" value={appointment.venue} /><Detail icon="time-outline" value={`${appointment.from} - ${appointment.until}`} /></>
+        )}
       </View>
-      <Text style={styles.reason}>{appointment.reason}</Text>
-      {appointment.notes ? <Text style={styles.notes}>Note: {appointment.notes}</Text> : null}
-      {onApprove ? (
-        <Pressable style={styles.approveButton} onPress={onApprove}>
-          <Ionicons name="checkmark" size={17} color="#ffffff" />
-          <Text style={styles.approveButtonText}>Approve request</Text>
-        </Pressable>
-      ) : null}
+      {editing ? (
+        <>
+          <TextInput value={draft.reason} onChangeText={(value) => updateDraft('reason', value)} style={[styles.editInput, styles.editTextArea]} placeholder="Reason" multiline />
+          <TextInput value={draft.notes} onChangeText={(value) => updateDraft('notes', value)} style={[styles.editInput, styles.editTextArea]} placeholder="Notes / emergencies" multiline />
+          <View style={styles.actionRow}>
+            <Pressable style={styles.saveButton} onPress={save}><Text style={styles.approveButtonText}>Save</Text></Pressable>
+            <Pressable style={styles.cancelButton} onPress={() => { setDraft(appointment); setEditing(false); }}><Text style={styles.cancelButtonText}>Cancel</Text></Pressable>
+          </View>
+        </>
+      ) : (
+        <>
+          <Text style={styles.reason}>{appointment.reason}</Text>
+          {appointment.notes ? <Text style={styles.notes}>Note: {appointment.notes}</Text> : null}
+          <View style={styles.actionRow}>
+            <Pressable style={styles.editButton} onPress={() => setEditing(true)}><Ionicons name="create-outline" size={17} color="#2563eb" /><Text style={styles.editButtonText}>Edit</Text></Pressable>
+            {onApprove ? <Pressable style={[styles.approveButton, styles.actionButton]} onPress={onApprove}><Ionicons name="checkmark" size={17} color="#ffffff" /><Text style={styles.approveButtonText}>Approve</Text></Pressable> : null}
+            {onReject ? <Pressable style={[styles.rejectButton, styles.actionButton]} onPress={onReject}><Ionicons name="close" size={17} color="#ffffff" /><Text style={styles.approveButtonText}>Reject</Text></Pressable> : null}
+          </View>
+        </>
+      )}
     </View>
   );
 }
@@ -165,6 +246,12 @@ function formatDate(value: Date) {
   return [value.getMonth() + 1, value.getDate(), value.getFullYear()]
     .map((part, index) => (index < 2 ? String(part).padStart(2, '0') : String(part)))
     .join('/');
+}
+
+function isValidTime(value: string) {
+  const match = /^(\d{2}):(\d{2})$/.exec(value);
+  if (!match) return false;
+  return Number(match[1]) <= 23 && Number(match[2]) <= 59;
 }
 
 function CalendarModal({
@@ -293,4 +380,17 @@ const styles = StyleSheet.create({
   notes: { color: '#667085', fontSize: 12, fontStyle: 'italic', marginTop: 9 },
   approveButton: { minHeight: 44, borderRadius: 9, backgroundColor: '#16a34a', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, marginTop: 15 },
   approveButtonText: { color: '#ffffff', fontSize: 14, fontWeight: '800' },
+  actionRow: { flexDirection: 'row', gap: 8, marginTop: 15, flexWrap: 'wrap' },
+  actionButton: { flex: 1, minWidth: 112, marginTop: 0 },
+  editButton: { minHeight: 44, paddingHorizontal: 14, borderRadius: 9, borderWidth: 1, borderColor: '#bfdbfe', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
+  editButtonText: { color: '#2563eb', fontSize: 14, fontWeight: '800' },
+  rejectButton: { minHeight: 44, borderRadius: 9, backgroundColor: '#dc2626', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },
+  saveButton: { flex: 1, minHeight: 44, borderRadius: 9, backgroundColor: '#2563eb', alignItems: 'center', justifyContent: 'center' },
+  cancelButton: { flex: 1, minHeight: 44, borderRadius: 9, borderWidth: 1, borderColor: '#d0d5dd', alignItems: 'center', justifyContent: 'center' },
+  cancelButtonText: { color: '#475467', fontSize: 14, fontWeight: '800' },
+  editInput: { minHeight: 44, borderWidth: 1, borderColor: '#d0d5dd', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, color: '#172033', fontSize: 14, backgroundColor: '#ffffff', marginBottom: 8 },
+  smallInput: { width: 108, minHeight: 38, borderWidth: 1, borderColor: '#d0d5dd', borderRadius: 8, paddingHorizontal: 8, color: '#172033', fontSize: 12 },
+  editTimeRow: { flexDirection: 'row', gap: 8 },
+  editTimeInput: { flex: 1 },
+  editTextArea: { minHeight: 70, textAlignVertical: 'top' },
 });

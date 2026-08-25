@@ -17,8 +17,8 @@ import {
 import Nav from '../components/nav';
 import { addAppointment } from '../data/appointments';
 
-const venues = ['Main office', 'Online meeting', 'External venue'];
-const appointmentTypes = ['Interview', 'Consultation', 'Follow-up'];
+const venues = ['Main office', 'Meeting room', 'The National University', 'Other'];
+const appointmentTypes = ['Internal Interviews', 'Department Managers', 'Meetings', 'External Events', 'Other'];
 
 export default function RequestAppoinment() {
   const [venue, setVenue] = useState('');

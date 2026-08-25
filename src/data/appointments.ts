@@ -1,4 +1,4 @@
-export type AppointmentStatus = 'underReview' | 'approved';
+export type AppointmentStatus = 'underReview' | 'approved' | 'rejected';
 
 export type Appointment = {
   id: string;
@@ -35,6 +35,20 @@ export function addAppointment(appointment: Omit<Appointment, 'id' | 'status'>) 
 export function approveAppointment(id: string) {
   appointments = appointments.map((appointment) =>
     appointment.id === id ? { ...appointment, status: 'approved' } : appointment,
+  );
+  listeners.forEach((listener) => listener());
+}
+
+export function rejectAppointment(id: string) {
+  appointments = appointments.map((appointment) =>
+    appointment.id === id ? { ...appointment, status: 'rejected' } : appointment,
+  );
+  listeners.forEach((listener) => listener());
+}
+
+export function updateAppointment(id: string, updates: Omit<Appointment, 'id' | 'status'>) {
+  appointments = appointments.map((appointment) =>
+    appointment.id === id ? { ...appointment, ...updates } : appointment,
   );
   listeners.forEach((listener) => listener());
 }
