@@ -65,7 +65,7 @@ export default function RequestAppoinment() {
           </View>
 
           <View style={styles.formCard}>
-            <FieldLabel label="Appointment venue" required />
+            <FieldLabel label="Appointment place" required />
             <SelectField
               value={venue}
               placeholder="Select a venue"

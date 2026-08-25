@@ -93,7 +93,7 @@ export default function SignUp() {
                   onPress={() => setShowConfirmPassword((prev) => !prev)}
                   activeOpacity={0.7}
                 >
-                  <Text style={globalStyles.eyeText}>{showConfirmPassword ? '🙈' : '👁️'}</Text>
+                  <Text style={globalStyles.eyeText}></Text>
                 </TouchableOpacity>
               )}
             </View>
